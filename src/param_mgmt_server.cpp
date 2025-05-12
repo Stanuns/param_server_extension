@@ -186,8 +186,7 @@ private:
         }
 
         //Dump parameters
-        
-
+    
         response->err_code = 200;
         response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
     }

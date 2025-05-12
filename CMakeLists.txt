@@ -40,10 +40,7 @@ ament_target_dependencies(param_dumper_client_test
   ament_index_cpp
 )
 target_link_libraries(param_dumper_client_test
-  ${rclcpp_LIBRARIES}
-  ${rcl_interfaces_LIBRARIES}
-  yaml-cpp
-  ${ament_index_cpp_LIBRARIES}
+  ${YAML_CPP_LIBRARIES}
 )
 
 target_include_directories(param_mgmt_server PUBLIC

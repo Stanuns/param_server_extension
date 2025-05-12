@@ -1,10 +1,11 @@
 #include <rclcpp/rclcpp.hpp>
-#include <yaml-cpp/yaml.h>
-#include <filesystem>
-#include <fstream>
 #include <rcl_interfaces/srv/list_parameters.hpp>
 #include <rcl_interfaces/srv/get_parameters.hpp>
+#include <yaml-cpp/yaml.h>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <filesystem>
+#include <fstream>
+#include <string>
 
 using namespace std::chrono_literals;
 
@@ -59,12 +60,13 @@ private:
             YAML::Node params;
             params[node_name]["ros__parameters"] = YAML::Node(YAML::NodeType::Map);
 
+            auto param_values = get_future.get()->values;
             for (size_t i = 0; i < param_names.size(); ++i) {
-                params[node_name]["ros__parameters"][param_names[i]] = parameter_to_yaml(get_future.get()->values[i]);
+                params[node_name]["ros__parameters"][param_names[i]] = parameter_to_yaml(param_values[i]);
             }
 
-            std::ofstream f(output_file);
-            f << params;
+            std::ofstream fout(output_file);
+            fout << params;
             RCLCPP_INFO(this->get_logger(), "Parameters dumped to %s", output_file.c_str());
         }
     }
@@ -97,7 +99,7 @@ private:
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    auto dumper = std::make_shared<ParamDumperclient>();
+    auto node = std::make_shared<ParamDumperclient>();
     rclcpp::shutdown();
     return 0;
 }
