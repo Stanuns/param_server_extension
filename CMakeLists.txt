@@ -7,11 +7,29 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(nav2_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(robot_interfaces REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 add_executable(param_mgmt_server src/param_mgmt_server.cpp)
+ament_target_dependencies(param_mgmt_server
+  robot_interfaces
+  rclcpp
+  rclcpp_action
+  rclcpp_components
+  nav2_msgs
+  std_srvs
+  nav_msgs
+)
+target_link_libraries(param_mgmt_server
+  ${YAML_CPP_LIBRARIES}
+)
+
 target_include_directories(param_mgmt_server PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)

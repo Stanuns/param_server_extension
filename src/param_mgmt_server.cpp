@@ -1,10 +1,159 @@
-#include <cstdio>
+#include <rclcpp/rclcpp.hpp>
+#include <std_srvs/srv/trigger.hpp>
+#include <dirent.h>
+#include <vector>
+#include <string>
+#include <set>
+#include <fstream>
+#include <filesystem>
+#include <stdexcept>
+#include <yaml-cpp/yaml.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include "robot_interfaces/srv/param_server.hpp"
 
-int main(int argc, char ** argv)
-{
-  (void) argc;
-  (void) argv;
 
-  printf("hello world param_server_extension package\n");
-  return 0;
+/***
+ *                
+ * /param_server  
+ */
+using namespace std;
+class ParamMgmtServer : public rclcpp::Node {
+public:
+    ParamMgmtServer() : Node("param_mgmt_server") {
+
+        service_ps_ = this->create_service<robot_interfaces::srv::ParamServer>(
+            "/param_server",
+            std::bind(&ParamMgmtServer::handle_request_ps, this, std::placeholders::_1, std::placeholders::_2));
+        
+
+        RCLCPP_INFO(this->get_logger(), "Service /param_server is ready.");
+    }
+
+private:
+
+    void handle_request_ps(
+        const std::shared_ptr<robot_interfaces::srv::ParamServer::Request> request,
+        std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+            
+          uint32_t cmd_type = request->cmd_type;
+          if(cmd_type == 1){//get params
+
+            switch (request->cmd_name) {
+              case 1:  // Version
+                  try{
+                      ;
+                  }catch (const std::exception& e) {
+                      response->err_code = 500;
+                      response->err_msg = std::string("Error in Get Version param: ") + e.what();
+                      RCLCPP_ERROR(get_logger(), "Get Version param error: %s", e.what());
+                      break;
+                  } catch (...) {
+                      response->err_code = 500;
+                      response->err_msg = "Unknown error in Get Version param";
+                      RCLCPP_ERROR(get_logger(), "Unknown error in Get Version param");
+                      break;
+                  }
+                  response->err_code = 200;
+                  response->err_msg = std::string("Get Version param successfully");
+                  break;
+              case 2:  // Speed
+                  get_max_speed_param(response);
+                  break;
+              case 3:  // Charge pose
+                  try {
+                      ;
+                  } catch (const std::exception& e) {
+                      response->err_code = 500;
+                      response->err_msg = std::string("Error in Get Charge Pose param: ") + e.what();
+                      RCLCPP_ERROR(get_logger(), "Get Charge Pose param error: %s", e.what());
+                      break;
+                  }
+                  response->err_code = 200;
+                  response->err_msg = "Get Charge Pose param successfully";
+                  break;
+              case 4:  // Charge threshold
+                  try{
+                      ;
+                  }catch (const std::exception& e) {
+                      response->err_code = 500;
+                      response->err_msg = std::string("Error in Get Charge Threshold param: ") + e.what();
+                      RCLCPP_ERROR(get_logger(), "Get Charge Threshold param error: %s", e.what());
+                      break;
+                  } catch (...) {
+                      response->err_code = 500;
+                      response->err_msg = "Unknown error in Get Charge Threshold param";
+                      RCLCPP_ERROR(get_logger(), "Unknown error in Get Charge Threshold param");
+                      break;
+                  }
+                  response->err_code = 200;
+                  response->err_msg = "Get Charge Threshold param successfully";
+                  break;
+              case 5:  // Battery level
+                  try {
+                      ;
+                  } catch (const std::exception& e) {
+                      response->err_code = 500;
+                      response->err_msg = std::string("Error in Get Battery Level param: ") + e.what();
+                      RCLCPP_ERROR(get_logger(), "Get Battery Level param error: %s", e.what());
+                      break;
+                  }
+                  response->err_code = 200;
+                  response->err_msg = "Get Battery Level param successfully";
+                  break;
+              default:
+                  response->err_code = 500;
+                  response->err_msg = "Invalid cmd_name";
+                  break;
+            }
+
+          }else if(cmd_type == 1){//set params
+
+
+          }
+
+    }
+
+    void get_max_speed_param(std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+        // Create node to access parameters
+        auto node = rclcpp::Node::make_shared("temp_param_node");
+        
+        // Declare parameter client
+        auto param_client = std::make_shared<rclcpp::SyncParametersClient>(node, "/hm_base_driver_node");
+        
+        // Wait for service to be available
+        if (!param_client->wait_for_service(std::chrono::seconds(1))) {
+            response->err_code = 1;
+            response->err_msg = "Parameter service not available";
+            return;
+        }
+
+        try {
+            // Get the parameter value
+            auto max_speed = param_client->get_parameter<float>("max_linear_speed");
+            
+            // Store in response
+            response->speed_list.clear();
+            response->speed_list.push_back(max_speed);
+            response->err_code = 200;
+            response->err_msg = "Get Speed param successfully";
+        } catch (const rclcpp::exceptions::ParameterNotDeclaredException & e) {
+            response->err_code = 400;
+            response->err_msg = "Parameter max_linear_speed not declared";
+        } catch (const std::exception & e) {
+            response->err_code = 500;
+            response->err_msg = std::string("Error Getting Speed param: ") + e.what();
+        }
+    }
+
+    rclcpp::Service<robot_interfaces::srv::ParamServer>::SharedPtr service_ps_;
+    std::string maps_dir;
+    std::string params_dir;
+};
+
+int main(int argc, char **argv) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<ParamMgmtServer>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
 }
