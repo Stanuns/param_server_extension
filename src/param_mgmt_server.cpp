@@ -10,6 +10,7 @@
 #include <yaml-cpp/yaml.h>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include "robot_interfaces/srv/param_server.hpp"
+#include <rclcpp/parameter_client.hpp>
 
 
 /***
@@ -106,23 +107,33 @@ private:
                   break;
             }
 
-          }else if(cmd_type == 1){//set params
+          }else if(cmd_type == 2){//set params and dump params
+            switch (request->cmd_name) {
+                case 2:  // Set Max Speed
+                    set_max_speed_param(request, response);
+                    break;
+                case 3:  // Set Charge pose
+                    break;
+                case 4:  // Set Charge threshold
+                    break;
+                default:
 
+                    break;
 
-          }
+            }
+        }
 
     }
 
     void get_max_speed_param(std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
-        // Create node to access parameters
-        auto node = rclcpp::Node::make_shared("temp_param_node");
+        auto node = rclcpp::Node::make_shared("temp_get_param_node");
         
         // Declare parameter client
         auto param_client = std::make_shared<rclcpp::SyncParametersClient>(node, "/hm_base_driver_node");
         
         // Wait for service to be available
         if (!param_client->wait_for_service(std::chrono::seconds(1))) {
-            response->err_code = 1;
+            response->err_code = 500;
             response->err_msg = "Parameter service not available";
             return;
         }
@@ -131,18 +142,54 @@ private:
             // Get the parameter value
             auto max_speed = param_client->get_parameter<float>("max_linear_speed");
             
-            // Store in response
             response->speed_list.clear();
             response->speed_list.push_back(max_speed);
             response->err_code = 200;
             response->err_msg = "Get Speed param successfully";
         } catch (const rclcpp::exceptions::ParameterNotDeclaredException & e) {
-            response->err_code = 400;
+            response->err_code = 501;
             response->err_msg = "Parameter max_linear_speed not declared";
         } catch (const std::exception & e) {
-            response->err_code = 500;
+            response->err_code = 502;
             response->err_msg = std::string("Error Getting Speed param: ") + e.what();
         }
+    }
+
+    void set_max_speed_param(const std::shared_ptr<robot_interfaces::srv::ParamServer::Request> request,
+        std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+        auto node = rclcpp::Node::make_shared("temp_set_param_node");
+
+        //Set parameters
+        if (request->speed_list.empty()) {
+            response->err_code = 1;
+            response->err_msg = "Request speed_list is empty";
+            return;
+        }
+        float max_speed = request->speed_list[0];
+        // Create a parameter client for the target node
+        auto param_client = std::make_shared<rclcpp::SyncParametersClient>(
+            node,
+            "hm_base_driver_node");
+        if (!param_client->wait_for_service(std::chrono::seconds(1))) {
+            response->err_code = 500;
+            response->err_msg = "node /hm_base_driver_node Parameter service not available";
+            return;
+        }
+        // Set the parameter
+        auto result = param_client->set_parameters({
+            rclcpp::Parameter("max_linear_speed", max_speed)
+        });
+        if (!result[0].successful) {
+            response->err_code = 501;
+            response->err_msg = "Failed to set parameter";
+            return;
+        }
+
+        //Dump parameters
+        
+
+        response->err_code = 200;
+        response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
     }
 
     rclcpp::Service<robot_interfaces::srv::ParamServer>::SharedPtr service_ps_;

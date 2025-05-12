@@ -15,6 +15,8 @@ find_package(nav_msgs REQUIRED)
 find_package(robot_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 add_executable(param_mgmt_server src/param_mgmt_server.cpp)
 ament_target_dependencies(param_mgmt_server
@@ -30,12 +32,26 @@ target_link_libraries(param_mgmt_server
   ${YAML_CPP_LIBRARIES}
 )
 
+add_executable(param_dumper_client_test src/param_dumper_client_test.cpp)
+ament_target_dependencies(param_dumper_client_test
+  rclcpp
+  rcl_interfaces
+  yaml-cpp
+  ament_index_cpp
+)
+target_link_libraries(param_dumper_client_test
+  ${rclcpp_LIBRARIES}
+  ${rcl_interfaces_LIBRARIES}
+  yaml-cpp
+  ${ament_index_cpp_LIBRARIES}
+)
+
 target_include_directories(param_mgmt_server PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_compile_features(param_mgmt_server PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
-install(TARGETS param_mgmt_server
+install(TARGETS param_mgmt_server param_dumper_client_test
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
