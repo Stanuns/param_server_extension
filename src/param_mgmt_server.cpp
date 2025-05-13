@@ -186,9 +186,107 @@ private:
         }
 
         //Dump parameters
+        std::string package_name = "base_driver";
+        std::string config_dir = ament_index_cpp::get_package_share_directory(package_name) + "/config";
+        std::filesystem::create_directories(config_dir);
+        std::string output_path = config_dir + "/base.yaml";
+        dump_param("hm_base_driver_node", output_path, response);
     
-        response->err_code = 200;
-        response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
+        // response->err_code = 200;
+        // response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
+    }
+
+    void dump_param(const std::string& node_name, const std::string& output_file,
+        std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+        if (std::find(this->get_node_names().begin(), this->get_node_names().end(), node_name) == this->get_node_names().end()) {
+            RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
+            response->err_code = 502;
+            response->err_msg = std::string("Node ")+ node_name + std::string("not found!");
+            return;
+        }
+
+        auto list_client = this->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
+        auto get_client = this->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
+
+        // List parameters
+        if (!list_client->wait_for_service(3s)) {
+            RCLCPP_ERROR(this->get_logger(), "Dump parameters, list_parameters service unavailable");
+            response->err_code = 503;
+            response->err_msg = "Dump parameters, list_parameters service unavailable";
+            return;
+        }
+
+        auto list_request = std::make_shared<rcl_interfaces::srv::ListParameters::Request>();
+        auto list_future = list_client->async_send_request(list_request);
+        
+        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), list_future) != 
+            rclcpp::FutureReturnCode::SUCCESS) {
+            RCLCPP_ERROR(this->get_logger(), "Dump parameters, Failed to list parameters");
+            response->err_code = 504;
+            response->err_msg = "Dump parameters, Failed to list parameters";
+            return;
+        }
+
+        auto param_names = list_future.get()->result.names;
+        if (param_names.empty()) {
+            RCLCPP_WARN(this->get_logger(), "Dump parameters, No parameters found for %s", node_name.c_str());
+            response->err_code = 505;
+            response->err_msg = std::string("Dump parameters, No parameters found for ") + node_name;
+            return;
+        }
+
+        // Get parameter values
+        auto get_request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
+        get_request->names = param_names;
+        auto get_future = get_client->async_send_request(get_request);
+
+        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_future) == 
+            rclcpp::FutureReturnCode::SUCCESS) {
+            YAML::Node params;
+            params[node_name]["ros__parameters"] = YAML::Node(YAML::NodeType::Map);
+
+            auto param_values = get_future.get()->values;
+            for (size_t i = 0; i < param_names.size(); ++i) {
+                params[node_name]["ros__parameters"][param_names[i]] = parameter_to_yaml(param_values[i]);
+            }
+
+            std::ofstream fout(output_file);
+            fout << params;
+            RCLCPP_INFO(this->get_logger(), "Parameters dumped to %s", output_file.c_str());
+
+            response->err_code = 200;
+            response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
+
+            return;
+        }
+
+        response->err_code = 506;
+        response->err_msg = "Dump parameters, Cannot get param_values";
+    }
+
+    YAML::Node parameter_to_yaml(const rcl_interfaces::msg::ParameterValue& param_value) {
+        switch (param_value.type) {
+            case rcl_interfaces::msg::ParameterType::PARAMETER_BOOL:
+                return YAML::Node(param_value.bool_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER:
+                return YAML::Node(param_value.integer_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE:
+                return YAML::Node(param_value.double_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_STRING:
+                return YAML::Node(param_value.string_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_BYTE_ARRAY:
+                return YAML::Node(param_value.byte_array_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY:
+                return YAML::Node(param_value.bool_array_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY:
+                return YAML::Node(param_value.integer_array_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY:
+                return YAML::Node(param_value.double_array_value);
+            case rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY:
+                return YAML::Node(param_value.string_array_value);
+            default:
+                return YAML::Node();
+        }
     }
 
     rclcpp::Service<robot_interfaces::srv::ParamServer>::SharedPtr service_ps_;
