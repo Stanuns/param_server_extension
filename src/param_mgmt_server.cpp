@@ -201,6 +201,10 @@ private:
         std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
 
         RCLCPP_INFO(this->get_logger(), "dump_param0");
+        // auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
+        // auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
+        auto node_dump_param = std::make_shared<rclcpp::Node>("temp_dump_param_node");
+        // auto node_get = std::make_shared<rclcpp::Node>("temp_dump_param_get_node");
 
         // if (std::find(this->get_node_names().begin(), this->get_node_names().end(), node_name) == this->get_node_names().end()) {
         //     RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
@@ -210,18 +214,14 @@ private:
         // }
 
         RCLCPP_INFO(this->get_logger(), "dump_param1");
-        
-        // auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
-        // auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
-        auto node_list = std::make_shared<rclcpp::Node>("temp_dump_param_list_node");
-        auto node_get = std::make_shared<rclcpp::Node>("temp_dump_param_get_node");
+
         // Create executors
         auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
         RCLCPP_INFO(this->get_logger(), "dump_param2");
 
-        auto list_client = node_list->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
-        auto get_client = node_get->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
+        auto list_client = node_dump_param->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
+        auto get_client = node_dump_param->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
 
         // List parameters
         if (!list_client->wait_for_service(3s)) {
@@ -232,7 +232,7 @@ private:
         }
 
         auto list_request = std::make_shared<rcl_interfaces::srv::ListParameters::Request>();
-        executor->add_node(node_list);
+        executor->add_node(node_dump_param);
         auto list_future = list_client->async_send_request(list_request);
         
         if (executor->spin_until_future_complete(list_future, 3s) != 
@@ -240,12 +240,12 @@ private:
             RCLCPP_ERROR(this->get_logger(), "Dump parameters, Failed to list parameters");
             response->err_code = 504;
             response->err_msg = "Dump parameters, Failed to list parameters";
-            executor->remove_node(node_list);
+            executor->remove_node(node_dump_param);
             return;
         }
 
         auto param_names = list_future.get()->result.names;
-        executor->remove_node(node_list);
+        executor->remove_node(node_dump_param);
         if (param_names.empty()) {
             RCLCPP_WARN(this->get_logger(), "Dump parameters, No parameters found for %s", node_name.c_str());
             response->err_code = 505;
@@ -256,7 +256,7 @@ private:
         // Get parameter values
         auto get_request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
         get_request->names = param_names;
-        executor->add_node(node_get);
+        executor->add_node(node_dump_param);
         auto get_future = get_client->async_send_request(get_request);
 
         if (executor->spin_until_future_complete(get_future, 3s) == 
@@ -275,11 +275,11 @@ private:
 
             response->err_code = 200;
             response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
-            executor->remove_node(node_get);
+            executor->remove_node(node_dump_param);
             return;
         }
         
-        executor->remove_node(node_get);
+        executor->remove_node(node_dump_param);
         response->err_code = 506;
         response->err_msg = "Dump parameters, Cannot get param_values";
         // node_param.reset();
