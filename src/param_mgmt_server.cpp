@@ -15,7 +15,8 @@
 
 /***
  *                
- * /param_server  
+ * service /service_param 
+ *  
  */
 using namespace std;
 class ParamMgmtServer : public rclcpp::Node {
@@ -23,11 +24,11 @@ public:
     ParamMgmtServer() : Node("param_mgmt_server") {
 
         service_ps_ = this->create_service<robot_interfaces::srv::ParamServer>(
-            "/param_server",
+            "/service_param",
             std::bind(&ParamMgmtServer::handle_request_ps, this, std::placeholders::_1, std::placeholders::_2));
         
 
-        RCLCPP_INFO(this->get_logger(), "Service /param_server is ready.");
+        RCLCPP_INFO(this->get_logger(), "Service /service_param is ready.");
     }
 
 private:
@@ -126,6 +127,8 @@ private:
     }
 
     void get_max_speed_param(std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+        RCLCPP_INFO(this->get_logger(), "start to get_max_speed_param");
+
         auto node = rclcpp::Node::make_shared("temp_get_param_node");
         
         // Declare parameter client
@@ -191,7 +194,7 @@ private:
         std::filesystem::create_directories(config_dir);
         std::string output_path = config_dir + "/base.yaml";
         RCLCPP_INFO(this->get_logger(), "start to call dump_param()");
-        dump_param("hm_base_driver_node", output_path, response);
+        dump_param("/hm_base_driver_node", output_path, response);
     
         // response->err_code = 200;
         // response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
@@ -199,29 +202,41 @@ private:
 
     void dump_param(const std::string& node_name, const std::string& output_file,
         std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
+        // Add nullptr check for 'this'
+        if (!this) {
+            RCLCPP_ERROR(rclcpp::get_logger("param_mgmt_server"), "Invalid object state!");
+            response->err_code = 507;
+            response->err_msg = "Internal server error";
+            return;
+        }    
 
-        RCLCPP_INFO(this->get_logger(), "dump_param0");
         // auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
         // auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
         auto node_dump_param = std::make_shared<rclcpp::Node>("temp_dump_param_node");
         // auto node_get = std::make_shared<rclcpp::Node>("temp_dump_param_get_node");
 
-        // if (std::find(this->get_node_names().begin(), this->get_node_names().end(), node_name) == this->get_node_names().end()) {
-        //     RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
-        //     response->err_code = 502;
-        //     response->err_msg = std::string("Node ")+ node_name + std::string("not found!");
-        //     return;
-        // }
-
-        RCLCPP_INFO(this->get_logger(), "dump_param1");
+        // auto node_temp = rclcpp::Node::make_shared("temp_get_node_names");
+        std::vector<std::string> node_names;
+        try {
+            node_names = this->get_node_names();
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to get node names: %s", e.what());
+            response->err_code = 508;
+            response->err_msg = "Failed to query node names";
+            return;
+        }
+        if (std::find(node_names.begin(), node_names.end(), node_name) == node_names.end()) {
+            RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
+            response->err_code = 502;
+            response->err_msg = std::string("Node ")+ node_name + std::string("not found!");
+            return;
+        }
 
         // Create executors
         auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
-        RCLCPP_INFO(this->get_logger(), "dump_param2");
-
-        auto list_client = node_dump_param->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
-        auto get_client = node_dump_param->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
+        auto list_client = node_dump_param->create_client<rcl_interfaces::srv::ListParameters>(node_name + "/list_parameters");
+        auto get_client = node_dump_param->create_client<rcl_interfaces::srv::GetParameters>(node_name + "/get_parameters");
 
         // List parameters
         if (!list_client->wait_for_service(3s)) {
