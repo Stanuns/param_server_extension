@@ -199,15 +199,26 @@ private:
 
     void dump_param(const std::string& node_name, const std::string& output_file,
         std::shared_ptr<robot_interfaces::srv::ParamServer::Response> response) {
-        if (std::find(this->get_node_names().begin(), this->get_node_names().end(), node_name) == this->get_node_names().end()) {
-            RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
-            response->err_code = 502;
-            response->err_msg = std::string("Node ")+ node_name + std::string("not found!");
-            return;
-        }
 
-        auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
-        auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
+        RCLCPP_INFO(this->get_logger(), "dump_param0");
+
+        // if (std::find(this->get_node_names().begin(), this->get_node_names().end(), node_name) == this->get_node_names().end()) {
+        //     RCLCPP_ERROR(this->get_logger(), "Node '%s' not found!", node_name.c_str());
+        //     response->err_code = 502;
+        //     response->err_msg = std::string("Node ")+ node_name + std::string("not found!");
+        //     return;
+        // }
+
+        RCLCPP_INFO(this->get_logger(), "dump_param1");
+        
+        // auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
+        // auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
+        auto node_list = std::make_shared<rclcpp::Node>("temp_dump_param_list_node");
+        auto node_get = std::make_shared<rclcpp::Node>("temp_dump_param_get_node");
+        // Create executors
+        auto executor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+
+        RCLCPP_INFO(this->get_logger(), "dump_param2");
 
         auto list_client = node_list->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
         auto get_client = node_get->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
@@ -221,17 +232,20 @@ private:
         }
 
         auto list_request = std::make_shared<rcl_interfaces::srv::ListParameters::Request>();
+        executor->add_node(node_list);
         auto list_future = list_client->async_send_request(list_request);
         
-        if (rclcpp::spin_until_future_complete(node_list, list_future) != 
+        if (executor->spin_until_future_complete(list_future, 3s) != 
             rclcpp::FutureReturnCode::SUCCESS) {
             RCLCPP_ERROR(this->get_logger(), "Dump parameters, Failed to list parameters");
             response->err_code = 504;
             response->err_msg = "Dump parameters, Failed to list parameters";
+            executor->remove_node(node_list);
             return;
         }
 
         auto param_names = list_future.get()->result.names;
+        executor->remove_node(node_list);
         if (param_names.empty()) {
             RCLCPP_WARN(this->get_logger(), "Dump parameters, No parameters found for %s", node_name.c_str());
             response->err_code = 505;
@@ -242,9 +256,10 @@ private:
         // Get parameter values
         auto get_request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
         get_request->names = param_names;
+        executor->add_node(node_get);
         auto get_future = get_client->async_send_request(get_request);
 
-        if (rclcpp::spin_until_future_complete(node_get, get_future) == 
+        if (executor->spin_until_future_complete(get_future, 3s) == 
             rclcpp::FutureReturnCode::SUCCESS) {
             YAML::Node params;
             params[node_name]["ros__parameters"] = YAML::Node(YAML::NodeType::Map);
@@ -260,12 +275,16 @@ private:
 
             response->err_code = 200;
             response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
+            executor->remove_node(node_get);
             return;
         }
-
+        
+        executor->remove_node(node_get);
         response->err_code = 506;
         response->err_msg = "Dump parameters, Cannot get param_values";
         // node_param.reset();
+        RCLCPP_ERROR(get_logger(), "Dump parameters error, Cannot get param_values");
+       
     }
 
     YAML::Node parameter_to_yaml(const rcl_interfaces::msg::ParameterValue& param_value) {
