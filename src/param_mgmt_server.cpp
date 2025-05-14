@@ -190,6 +190,7 @@ private:
         std::string config_dir = ament_index_cpp::get_package_share_directory(package_name) + "/config";
         std::filesystem::create_directories(config_dir);
         std::string output_path = config_dir + "/base.yaml";
+        RCLCPP_INFO(this->get_logger(), "start to call dump_param()");
         dump_param("hm_base_driver_node", output_path, response);
     
         // response->err_code = 200;
@@ -205,8 +206,11 @@ private:
             return;
         }
 
-        auto list_client = this->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
-        auto get_client = this->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
+        auto node_list = rclcpp::Node::make_shared("temp_dump_param_list_node");
+        auto node_get = rclcpp::Node::make_shared("temp_dump_param_get_node");
+
+        auto list_client = node_list->create_client<rcl_interfaces::srv::ListParameters>("/" + node_name + "/list_parameters");
+        auto get_client = node_get->create_client<rcl_interfaces::srv::GetParameters>("/" + node_name + "/get_parameters");
 
         // List parameters
         if (!list_client->wait_for_service(3s)) {
@@ -219,7 +223,7 @@ private:
         auto list_request = std::make_shared<rcl_interfaces::srv::ListParameters::Request>();
         auto list_future = list_client->async_send_request(list_request);
         
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), list_future) != 
+        if (rclcpp::spin_until_future_complete(node_list, list_future) != 
             rclcpp::FutureReturnCode::SUCCESS) {
             RCLCPP_ERROR(this->get_logger(), "Dump parameters, Failed to list parameters");
             response->err_code = 504;
@@ -240,7 +244,7 @@ private:
         get_request->names = param_names;
         auto get_future = get_client->async_send_request(get_request);
 
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), get_future) == 
+        if (rclcpp::spin_until_future_complete(node_get, get_future) == 
             rclcpp::FutureReturnCode::SUCCESS) {
             YAML::Node params;
             params[node_name]["ros__parameters"] = YAML::Node(YAML::NodeType::Map);
@@ -256,12 +260,12 @@ private:
 
             response->err_code = 200;
             response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
-
             return;
         }
 
         response->err_code = 506;
         response->err_msg = "Dump parameters, Cannot get param_values";
+        // node_param.reset();
     }
 
     YAML::Node parameter_to_yaml(const rcl_interfaces::msg::ParameterValue& param_value) {
