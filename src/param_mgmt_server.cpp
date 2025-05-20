@@ -56,7 +56,7 @@ private:
                       RCLCPP_ERROR(get_logger(), "Get Charge Pose param error: %s", e.what());
                       break;
                   }
-                  response->err_code = 200;
+                  response->err_code = 0x00;
                   response->err_msg = "Get Charge Pose param successfully";
                   break;
               case 4:  // Charge threshold
@@ -73,7 +73,7 @@ private:
                       RCLCPP_ERROR(get_logger(), "Unknown error in Get Charge Threshold param");
                       break;
                   }
-                  response->err_code = 200;
+                  response->err_code = 0x00;
                   response->err_msg = "Get Charge Threshold param successfully";
                   break;
               case 5:  // Battery level
@@ -121,7 +121,7 @@ private:
             // Get the parameter value
             auto b_level = param_client->get_parameter<float>("battery_level");
             response->battery_level = b_level;
-            response->err_code = 200;
+            response->err_code = 0x00;
             response->err_msg = "Get battery level param successfully";
         } catch (const rclcpp::exceptions::ParameterNotDeclaredException & e) {
             response->err_code = 501;
@@ -153,7 +153,7 @@ private:
             response->version_list.clear();
             response->version_list.push_back(v_mcu);
             response->version_list.push_back(v_main_control_sw);
-            response->err_code = 200;
+            response->err_code = 0x00;
             response->err_msg = "Get sw version param successfully";
         } catch (const rclcpp::exceptions::ParameterNotDeclaredException & e) {
             response->err_code = 501;
@@ -187,7 +187,7 @@ private:
             response->speed_list.clear();
             response->speed_list.push_back(max_linear);
             response->speed_list.push_back(max_angular);
-            response->err_code = 200;
+            response->err_code = 0x00;
             response->err_msg = "Get max speed param successfully";
         } catch (const rclcpp::exceptions::ParameterNotDeclaredException & e) {
             response->err_code = 501;
@@ -238,7 +238,7 @@ private:
         RCLCPP_INFO(this->get_logger(), "start to call dump_param()");
         dump_param("/hm_base_driver_node", output_path, response);
     
-        // response->err_code = 200;
+        // response->err_code = 0x00;
         // response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
     }
 
@@ -330,7 +330,7 @@ private:
             fout << params;
             RCLCPP_INFO(this->get_logger(), "Parameters dumped to %s", output_file.c_str());
 
-            response->err_code = 200;
+            response->err_code = 0x00;
             response->err_msg = "Set /hm_base_driver_node parameters and Dump successfully";
             executor->remove_node(node_dump_param);
             return;
